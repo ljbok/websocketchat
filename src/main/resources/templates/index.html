@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>채팅방입니다.</title>
+</head>
+<body>
+<script>
+    let webSocket;
+
+    // WebSocket 연결 설정 (채팅방에 입장)
+    function connectWebSocket() {
+
+        let name = "";
+        if(document.getElementById("name") != null && document.getElementById("name") != undefined) {
+            name = document.getElementById("name").value.toString().trim();
+        }
+
+        // WebSocket 연결 생성
+        webSocket = new WebSocket("ws://localhost:8080/ws/chat");
+
+        // WebSocket 연결 성공 시
+        webSocket.onopen = function () {
+            sendNotification(`'${name}' 님이 채팅방에 입장했습니다.`);
+        };
+
+        // 서버로부터 메시지를 수신했을 때
+        webSocket.onmessage = function (event) {
+            const message = event.data;
+            appendMessage(message);
+        };
+
+        // WebSocket 연결 종료 시
+        webSocket.onclose = function () {
+
+        };
+
+        // WebSocket 에러 처리
+        webSocket.onerror = function (event) {
+            appendSingleString("에러가 발생했습니다.");
+            appendMessage(event.data);
+        };
+    }
+
+    function joinChatRoom () {
+
+        const nameElement = document.getElementById("name");
+
+        if(nameElement != null && nameElement != undefined) {
+            if(nameElement.value == null || nameElement.value.toString().trim() === "") {
+                alert("유저명을 먼저 입력해주세요.");
+                return;
+            }
+        }
+
+        connectWebSocket(); // 웹소켓 연결
+
+        const joinChatBtn = document.getElementById("joinChatBtn");
+        let chatRoomId;
+
+        if(joinChatBtn) {
+            chatRoomId = joinChatBtn.value;
+            console.log("chatRoomId : " + chatRoomId);
+        }
+
+        const body = {
+            "chatRoomId": chatRoomId
+        }
+
+        // 기존 채팅 기록 불러오기 (비동기 통신)
+        fetch("chat/join/chatRoom", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        })
+            .then(response => response.json())
+            .then(data => {
+                appendListMessage(data);
+                // data.forEach(message => {
+                //     appendMessage(message);
+                //  });
+            })
+            .catch(error => {
+                appendSingleString("채팅 기록을 불러오는 중 오류 발생: " + error);
+            });
+    }
+
+    function appendSingleString(messageStr) {
+        // console.log(message);
+        const chatDiv = document.getElementById("chatDiv");
+
+        if(chatDiv == null || chatDiv == undefined) {
+            return;
+        }
+
+        const br = document.createElement("br");
+        const messageElement = document.createElement("span");
+        messageElement.innerText = messageStr;
+        chatDiv.appendChild(br);
+        chatDiv.appendChild(messageElement);
+        chatDiv.scrollTop = chatDiv.scrollHeight; // 스크롤 자동 이동
+    }
+
+    function appendListMessage(messageList) {
+
+        const messages = JSON.parse(JSON.stringify(messageList));
+        const chatDiv = document.getElementById("chatDiv");
+
+        if(chatDiv == null || chatDiv == undefined) {
+            return;
+        }
+
+        if(messages == null || messages.length === 0) {
+            return;
+        }
+
+        messages.map((message) => {
+            const targetDate = new Date(message.addDate);
+            const addDate = targetDate.getFullYear() +"."+ targetDate.getMonth() +"."+ targetDate.getDate() +" "+ targetDate.getHours() +"시"+ targetDate.getMinutes() +"분";
+
+            const br = document.createElement("br");
+            const messageElement = document.createElement("span");
+            messageElement.innerText = `(${addDate}) ${message.name}: ${message.detail}`;
+
+            console.log(messageElement);
+            chatDiv.appendChild(br);
+            chatDiv.appendChild(messageElement);
+            chatDiv.scrollTop = chatDiv.scrollHeight; // 스크롤 자동 이동
+        })
+    }
+
+
+    // 메시지를 채팅창에 추가하는 함수
+    function appendMessage (messageStr, division) {
+
+        const message = JSON.parse(messageStr); // 웹소켓 자체에서 넘어온 event.data는 JSON.parse() 만 해줘도 됨
+        const chatDiv = document.getElementById("chatDiv");
+
+        const targetDate = new Date(message.addDate);
+        const addDate = targetDate.getFullYear() +"."+ targetDate.getMonth() +"."+ targetDate.getDate() +" "+ targetDate.getHours() +"시"+ targetDate.getMinutes() +"분";
+
+
+        if(chatDiv == null || chatDiv == undefined) {
+            return;
+        }
+
+        const br = document.createElement("br");
+        const messageElement = document.createElement("span");
+        messageElement.innerText = `(${addDate}) ${message.name}: ${message.detail}`;
+
+        chatDiv.appendChild(br);
+        chatDiv.appendChild(messageElement);
+        chatDiv.scrollTop = chatDiv.scrollHeight; // 스크롤 자동 이동
+    }
+
+    // 메시지 전송 함수
+    function sendMessage () {
+        const name = document.getElementById("name").value;
+        const detail = document.getElementById("detail").value;
+
+        const chatMessage = {
+            "name": name,
+            "detail": detail,
+            "chatRoomId": document.getElementById("joinChatBtn").value, // 만약 채팅방이 여러개 있는 버전으로 수정한다면 하드코딩 하면 안 됨
+            "addDate": new Date()
+        }
+
+        if(webSocket == null) {
+            return;
+        }
+
+        webSocket.send(JSON.stringify(chatMessage)); // 서버로 메시지 전송
+
+        // 입력창 초기화
+        document.getElementById("detail").value = "";
+    }
+
+    function sendNotification (message) {
+        const notification = {
+            "name": "알림",
+            "detail": message,
+            "chatRoomId": document.getElementById("joinChatBtn").value, // 만약 채팅방이 여러개 있는 버전으로 수정한다면 하드코딩 하면 안 됨
+            addDate: new Date()
+        }
+
+        if(webSocket == null) {
+            return;
+        }
+
+        webSocket.send(JSON.stringify(notification)); // 서버로 메시지 전송
+    }
+
+    function exitChatBtn () {
+        if(webSocket != null) {
+            if (window.confirm("채팅방을 나가시겠습니까?")) {
+
+                if(document.getElementById("name") != null && document.getElementById("name") != undefined) {
+                   const name = document.getElementById("name").value;
+                   sendNotification(`'${name}' 님이 채팅방에서 퇴장했습니다.`);
+                }
+
+                webSocket.close();
+            }
+        }
+
+        const chatDiv = document.getElementById("chatDiv");
+        if(chatDiv != null && chatDiv != undefined) {
+            chatDiv.innerHTML = "";
+        }
+    }
+
+</script>
+
+<h1>채팅방 어플리케이션</h1>
+
+<button id="joinChatBtn" value="1" onclick="joinChatRoom()">1번 채팅방 입장</button>
+
+<div id="chatDiv" style="border: 1px solid black; overflow: auto; height: 300px; width: 400px;"></div>
+
+<!-- 메시지 입력 필드 -->
+<input type="text" id="name" placeholder="유저명 입력" style="width: 100px;">
+<br>
+<input type="text" id="detail" placeholder="메시지를 입력하세요" style="width: 400px;">
+<button id="addChatBtn" onclick="sendMessage()">보내기</button>
+<button id="exitChatBtn" onclick="exitChatBtn()">채팅방 나가기</button>
+</body>
+</html>

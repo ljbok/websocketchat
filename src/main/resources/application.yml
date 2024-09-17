@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: websocketchat
+
+
+  # mysql db 설정
+  datasource:
+    url: "jdbc:mysql://localhost/websocketchat"
+    username: "root"
+    password: ${MYSQL_ROOT_PASSWORD} # 시스템 환경 변수에 저장한 'MYSQL_ROOT_PASSWORD' 사용
+    driver-class-name : com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create  # 'create', 'update', 'validate', 'none'
+    properties:
+      hibernate:
+        show_sql: trueㄴ
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect  # MySQL 8.x
